@@ -3,10 +3,13 @@
  */
 package poet;
 
+import graph.ConcreteEdgesGraph;
+import graph.Graph;
 import java.io.File;
 import java.io.IOException;
-
-import graph.Graph;
+import java.nio.file.Files;
+import java.util.List;
+import java.util.Map;
 
 /**
  * A graph-based poetry generator.
@@ -52,14 +55,23 @@ import graph.Graph;
  */
 public class GraphPoet {
     
-    private final Graph<String> graph = Graph.empty();
+    private final Graph<String> graph;
     
     // Abstraction function:
-    //   TODO
+    //   AF(graph) = A word affinity graph where each vertex represents a unique, 
+    //   case-insensitive word from the corpus, and each directed edge (w1 -> w2) 
+    //   has a weight equal to the number of times word w2 follows word w1 in the corpus.
+    //
     // Representation invariant:
-    //   TODO
+    //   - All vertices in the graph are non-empty, lowercase strings.
+    //   - All edge weights are positive integers.
+    //   - The graph accurately reflects the adjacency counts of words in the corpus.
+    //
     // Safety from rep exposure:
-    //   TODO
+    //   - The graph is declared as private and final, preventing external modification.
+    //   - All methods that expose parts of the graph return copies or immutable views.
+    //   - The class does not provide any methods that allow external entities to modify
+    //     the internal graph directly.
     
     /**
      * Create a new poet with the graph from corpus (as described above).
@@ -68,10 +80,49 @@ public class GraphPoet {
      * @throws IOException if the corpus file cannot be found or read
      */
     public GraphPoet(File corpus) throws IOException {
-        throw new RuntimeException("not implemented");
+        // Parse the corpus file and build the affinity graph
+        // Separate the words on whitespace
+        // Count the number of times each word follows another
+        // Add the counts as edge weights to the graph
+        // Also convert words to lowercase
+        this.graph = new ConcreteEdgesGraph();
+        List<String> words = Files.lines(corpus.toPath())
+                .flatMap(line -> List.of(line.split("\\s+")).stream())
+                .map(String::toLowerCase)
+                .toList();
+        for (int i = 0; i < words.size() - 1; i++) {
+            String source = words.get(i);
+            String target = words.get(i + 1);
+            // Get previous weight
+            int weight = graph.targets(source).getOrDefault(target, 0) + 1;
+            // Set the weight
+            graph.set(source, target, weight);
+        }
+        checkRep();
     }
     
     // TODO checkRep
+    /**
+     * Checks the representation invariant of the class.
+     * @throws AssertionError if the representation invariant is violated.
+     */
+    private void checkRep() {
+        // The graph should have only positive edge weights
+        for (String vertex : graph.vertices()) {
+            for (String target : graph.targets(vertex).keySet()) {
+                assert graph.targets(vertex).get(target) > 0;
+            }
+        }
+        // All vertices should be lowercase, and not contain white space(i.e. tab, space or newline)
+        // vertices should not be empty
+        for (String vertex : graph.vertices()) {
+            assert vertex.equals(vertex.toLowerCase());
+            assert !vertex.contains(" ");
+            assert !vertex.contains("\t");
+            assert !vertex.contains("\n");
+            assert !vertex.isEmpty();
+        }
+    }
     
     /**
      * Generate a poem.
@@ -80,9 +131,53 @@ public class GraphPoet {
      * @return poem (as described above)
      */
     public String poem(String input) {
-        throw new RuntimeException("not implemented");
+        // Separate the input into words
+        // For each pair of adjacent words, find the bridge word with the highest weight
+        // Insert the bridge word between the adjacent words
+        // Return the poem
+        String[] words = input.split("\\s+");
+        StringBuilder poem = new StringBuilder();
+        for (int i = 0; i < words.length - 1; i++) {
+            String source = words[i].toLowerCase();
+            String target = words[i + 1].toLowerCase();
+            // Find the bridge word with the maximum combined weight
+            String bestBridge = null;
+            int maxWeight = 0;
+
+            for (Map.Entry<String, Integer> entry : graph.targets(source).entrySet()) {
+                String bridge = entry.getKey();
+                int sourceToBridgeWeight = entry.getValue();
+                int bridgeToTargetWeight = graph.targets(bridge).getOrDefault(target, 0);
+
+                int combinedWeight = sourceToBridgeWeight + bridgeToTargetWeight;
+                if (bridgeToTargetWeight > 0 && combinedWeight > maxWeight) {
+                    bestBridge = bridge;
+                    maxWeight = combinedWeight;
+                }
+            }
+
+            // Append the source word and the bridge word (if found) to the poem
+            poem.append(words[i]).append(" ");
+            if (bestBridge != null) {
+                poem.append(bestBridge).append(" ");
+            }
+        }
+
+        // Append the last word to the poem
+        poem.append(words[words.length - 1]);
+        return poem.toString().trim();
     }
     
     // TODO toString()
-    
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("GraphPoet Affinity Graph:\n");
+        for (String vertex : graph.vertices()) {
+            sb.append(vertex).append(" -> ");
+            sb.append(graph.targets(vertex).toString());
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
 }
